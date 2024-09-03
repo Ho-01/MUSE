@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>모바일 캘린더</title>
+    <style>
+        /* 모바일 환경에 최적화된 스타일 */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+
+        .logo-container{
+            display: flex;
+            justify-content: center;
+        }
+        .logo-image{
+            width: 21vw;
+            height: 14vw;
+        }
+
+        .calendar-container {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-evenly;
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            grid-gap: 5px;
+            margin-bottom: 20px;
+        }
+
+        .calendar-day {
+            padding: 10px;
+            background-color: #fff;
+            text-align: center;
+            border-radius: 5px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .calendar-day:hover {
+            background-color: #e0e0e0;
+        }
+
+        .event-icons-container {
+            display: flex;
+            gap: 2px;
+            position: absolute;
+            top: 5px;
+            right: 5px;
+        }
+
+        .event-icon {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .event-block {
+            background-color: #d1e7dd;
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .add-event, .view-event, .edit-event {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .add-event input, .add-event button, .view-event button, .edit-event button {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 10px;
+        }
+
+        /* 반응형 스타일 */
+        @media (min-width: 600px) {
+            .calendar-container {
+                max-width: 600px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="logo-container">
+    <a href="/"><img class="logo-image" src="/images/logo.png" alt="메인로고"></a>
+</div>
+<div class="calendar-container">
+    <div class="calendar-header" id="calendarHeader">
+        <button class="month-change-button" onclick="changeMonth(-1)">이전달</button>
+        <p id="year-month-header">xxxx년 xx월</p>
+        <button class="month-change-button" onclick="changeMonth(1)">다음달</button>
+    </div>
+    <div class="calendar-grid">
+        <!-- 요일 헤더 추가 -->
+        <div class="calendar-day">일</div>
+        <div class="calendar-day">월</div>
+        <div class="calendar-day">화</div>
+        <div class="calendar-day">수</div>
+        <div class="calendar-day">목</div>
+        <div class="calendar-day">금</div>
+        <div class="calendar-day">토</div>
+    </div>
+    <div class="calendar-grid" id="calendarDays">
+        <!-- 날짜가 동적으로 생성됩니다 -->
+    </div>
+</div>
+
+<!-- 일정 보기 및 추가 폼 -->
+<div class="view-event" id="viewEventForm">
+    <div id="eventBlocks"></div>
+    <button id="addEventButton" onclick="openAddEventForm()">일정 추가하기</button>
+    <button onclick="closeViewEventForm()">닫기</button>
+</div>
+
+<!-- 일정 등록 폼 -->
+<div class="add-event" id="addEventForm">
+    <form action="/calendar/new" method="post">
+        <input type="date" id="eventDate" name="dateString" style="display:none">
+        <input type="text" id="eventTitle" name="title" placeholder="노래 제목">
+        <input type="text" id="teamName" name="teamName" placeholder="팀 이름">
+        <input type="text" id="teamMembers" name="teamMembers" placeholder="팀 멤버 (쉼표로 구분)">
+        <label for="startTime">시작 시간:</label>
+        <input type="time" id="startTime" step="600" name="startTime"> <!-- 시간 10분 단위로 설정 -->
+        <label for="endTime">종료 시간:</label>
+        <input type="time" id="endTime" step="600" name="endTime"> <!-- 종료 시간 추가 -->
+        <button type="submit">일정 추가</button>
+    </form>
+    <button onclick="closeAddEventForm()">취소</button>
+</div>
+
+<!-- 일정 수정 폼 -->
+<div class="edit-event" id="editEventForm">
+    <form action="/calendar/edit" method="post">
+        <input type="text" id="editId" name="Id" style="display:none">
+        <input type="date" id="editDate" name="dateString" style="display:none">
+        <input type="text" id="editTitle" name="title" placeholder="노래 제목">
+        <input type="text" id="editTeamName" name="teamName" placeholder="팀 이름">
+        <input type="text" id="editTeamMembers" name="teamMembers" placeholder="팀 멤버 (쉼표로 구분)">
+        <label for="startTime">시작 시간:</label>
+        <input type="time" id="editStartTime" step="600" name="startTime"> <!-- 시간 10분 단위로 설정 -->
+        <label for="endTime">종료 시간:</label>
+        <input type="time" id="editEndTime" step="600" name="endTime"> <!-- 종료 시간 추가 -->
+        <button type="submit">변경사항 저장</button>
+    </form>
+    <form action="/calendar/delete" method="post">
+        <input type="text" id="deleteId" name="Id" style="display:none">
+        <button type="submit">일정 삭제</button>
+    </form>
+    <button onclick="closeEditEventForm()">뒤로</button>
+</div>
+
+<script>
+    let events = {}; // 서버에서 가져온 이벤트 데이터를 저장할 객체 : 2차원 배열
+    /* 이벤트 데이터 예시
+        id: 0
+        dateString: "20240817"
+        title: "material girl"
+        teamName: "메추리알"
+        teamMembers: "전승현"
+        startTime: "22:00:00"
+        endTime: "23:00:00"
+
+        * id는 서버 측에서 자동생성되는 값으로, 이벤트 생성 시에 클라이언트가 따로 전달해줄 필요가 없다.
+        id 에는 이벤트가 서버에 전달된 순서대로 0, 1, 2,... 의 값이 부여된다.
+        모든 이벤트는 서로 다른 유일한 id 값을 가지게 된다.
+    */
+
+    let eventsByDate = {}; // 날짜 string(예 : 240828)를 인덱스로 접근하면, 해당 날짜의 이벤트 id들을 알 수 있는 2차원 배열
+
+    let selectedDate; // 현재 클릭된 날짜를 임시저정할 변수
+
+    const now = new Date();
+    let todayDateString= now.getFullYear()+"-"+String(now.getMonth()).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
+    // todayDateString 에 오늘 날짜가 String "20xx-xx-xx" 로 저장된다.
+    let year = now.getFullYear();
+    let month = now.getMonth();
+
+    // 서버에서 이벤트 데이터를 가져오는 함수
+    function fetchEvents() {
+        const xhr = new XMLHttpRequest();
+        xhr.open("GET", "/api/events", true); // 서버의 API 경로
+        xhr.onload = function() {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                const eventList = JSON.parse(xhr.responseText);
+                eventList.forEach(event => {
+                    events[event.id] = event;
+                });
+                eventsByDate = createEventsByDateArray(events);
+                generateCalendar(year, month); // 현재 달력 생성
+            } else {
+                console.error("Failed to load events. Status: " + xhr.status);
+            }
+        };
+        xhr.send();
+    }
+
+    // events 객체를 받아 eventsByDate 2차원 배열을 생성하는 함수.
+    function createEventsByDateArray(events){
+        let array = {};
+        for(let key in events){
+            const dateString = events[key].dateString;
+            const id = events[key].id;
+            if(!array[dateString]){
+                array[dateString] = [];
+            }
+            array[dateString].push(id);
+        }
+        console.log(array);
+        return array;
+    }
+
+    // 달력 데이터를 채우는 함수
+    function generateCalendar(year, month) {
+        console.log(events);
+        const yearMonthHeader = document.getElementById('year-month-header');
+        yearMonthHeader.innerHTML = year+"년 "+(month+1)+"월";
+        const daysContainer = document.getElementById('calendarDays');
+        daysContainer.innerHTML = ''; // 기존 내용 초기화
+
+        const firstDay = new Date(year, month, 1).getDay(); // 첫 날의 요일 (일요일=0)
+        const lastDate = new Date(year, month + 1, 0).getDate(); // 달의 마지막 날짜
+        const prevMonthLastDate = new Date(year, month, 0).getDate(); // 이전 달의 마지막 날짜
+
+        let dayCount = 1;
+        let prevMonthDayCount = prevMonthLastDate - (firstDay - 1);
+
+        // 빈 칸 채우기 (이전 달)
+        for (let i = 0; i < firstDay - 1; i++) {
+            const emptyDay = document.createElement('div');
+            emptyDay.classList.add('calendar-day');
+            emptyDay.textContent = prevMonthDayCount++;
+            emptyDay.style.color = '#ccc'; // 이전 달 날짜는 흐리게
+            daysContainer.appendChild(emptyDay);
+        }
+
+        // 현재 달 날짜 채우기
+        for (let i = 0; i < lastDate; i++) {
+            const day = document.createElement('div');
+            day.classList.add('calendar-day');
+            day.textContent = dayCount;
+            day.dataset.date = `${year}-${String(month + 1).padStart(2,"0")}-${String(dayCount).padStart(2,"0")}`;
+            if(eventsByDate[`${year}${String(month + 1).padStart(2,"0")}${String(dayCount).padStart(2,"0")}`]){
+                day.style.background = '#FF7F50'; // 해당 날짜에 일정 있으면 색 표시
+            }
+            day.onclick = () => {
+                selectedDate = day.dataset.date;
+                openViewEventForm(day.dataset.date); // 날짜 클릭 시 해당 날짜의 일정 추가
+            }
+
+            daysContainer.appendChild(day);
+            dayCount++;
+        }
+
+        // 남는 칸 채우기 (다음 달)
+        const totalCells = firstDay - 1 + lastDate;
+        const remainingCells = 42 - totalCells; // 6주 기준 42칸
+        for (let i = 0; i < remainingCells; i++) {
+            const emptyDay = document.createElement('div');
+            emptyDay.classList.add('calendar-day');
+            emptyDay.textContent = i + 1;
+            emptyDay.style.color = '#ccc'; // 다음 달 날짜는 흐리게
+            daysContainer.appendChild(emptyDay);
+        }
+    }
+
+    // 달력 월 변경
+    function changeMonth(n){
+        if(month+n == 13){
+            year++;
+            month = 1;
+        } else if(month+n == 0){
+            year--;
+            month = 12;
+        } else{
+            month += n;
+        }
+        generateCalendar(year, month);
+    }
+
+    // viewEventForm 열기
+    function openViewEventForm(dateString){
+        // 이전 내용 초기화
+        document.getElementById("eventBlocks").innerHTML = '';
+
+        // 선택한 날짜 "20xx-xx-xx" 형식으로 띄우기
+        const date = document.createElement('div');
+        date.textContent = dateString;
+        document.getElementById("eventBlocks").appendChild(date);
+
+        // 해당 날짜의 합주 모두 보이기, 합주 클릭 시 클릭된 합주 수정 가능
+        const dateIndex = selectedDate.split("-").join("");
+        try{
+            eventsByDate[dateIndex].forEach((id)=>{
+                let eventBlock = document.createElement('div');
+                eventBlock.innerHTML = `
+                    <div>${events[id].title} : ${events[id].startTime} ~ ${events[id].endTime}</div>`;
+                eventBlock.setAttribute("onclick", `openEditEventForm(${id})`);
+                document.getElementById("eventBlocks").appendChild(eventBlock);
+            });
+        } catch(e){
+            console.log("해당 날짜 데이터 없음");
+            console.log(e);
+        }
+
+        document.getElementById("addEventForm").style.display = "none"; // addEventForm 보여져있다면 숨기기
+        document.getElementById("viewEventForm").style.display = "block"; // viewEventForm 숨겨져있다면 보이기
+    }
+
+    // viewEventForm 닫기
+    function closeViewEventForm(){
+        document.getElementById("addEventForm").style.display = "none"; // addEventForm 보여져있다면 숨기기
+        document.getElementById("viewEventForm").style.display = "none"; // viewEventForm 보여져있다면 숨기기
+    }
+
+    // addEventForm 열기
+    function openAddEventForm() {
+        console.log(selectedDate +"에 이벤트 추가");
+        document.getElementById("eventDate").value = selectedDate;
+        document.getElementById("addEventForm").style.display = "block"; // addEventForm 숨겨져있다면 보이기
+        document.getElementById("viewEventForm").style.display = "none"; // viewEventForm 보여져있다면 숨기기
+    }
+
+    // addEventForm 닫기
+    function closeAddEventForm() {
+        document.getElementById("addEventForm").style.display = "none";
+        document.getElementById("viewEventForm").style.display = "block";
+    }
+
+    // editEventForm 열기
+    function openEditEventForm(id){
+        console.log(id);
+        document.getElementById("editId").value = id;
+        document.getElementById("deleteId").value = id;
+        document.getElementById("editDate").value = selectedDate;
+        document.getElementById("editTitle").value = events[id].title;
+        document.getElementById("editTeamName").value = events[id].teamName;
+        document.getElementById("editTeamMembers").value = events[id].teamMembers;
+        document.getElementById("editStartTime").value = events[id].startTime;
+        document.getElementById("editEndTime").value = events[id].endTime;
+        document.getElementById("editEventForm").style.display = "block"; // editEventForm 숨겨져있다면 보이기
+        document.getElementById("viewEventForm").style.display = "none"; // viewEventForm 보여져있다면 숨기기
+    }
+
+    // editEventForm 닫기
+    function closeEditEventForm(){
+        document.getElementById("editEventForm").style.display = "none"; // editEventForm 보여져있다면 숨기기
+        document.getElementById("viewEventForm").style.display = "block"; // viewEventForm 숨겨져있다면 보이기
+    }
+
+    // 페이지 로드 시 캘린더 생성
+    window.onload = fetchEvents;
+</script>
+</body>
+</html>

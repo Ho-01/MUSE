@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Hapju</title>
+</head>
+<body>
+    <header id="header">
+      <nav>
+        <div>
+          <a title="달력으로 돌아가는 링크" href="/">달력으로 돌아가기</a>
+        </div>
+      </nav>
+    </header>
+    <div title="내용물">
+        <p th:text="${date}">날짜</p>
+        <p>=============================</p>
+        <table>
+        <div th:each="hapju: ${hapjuList}">
+            <p>@ 합주 날짜: [[${hapju.key}]] </p>
+            <p>@ 합주 내용: [[${hapju.value}]]</p>
+            <p>=============================</p>
+        </div>
+        </table>
+        <a title="합주등록" href="/hapju/new">새로운 합주 등록하기</a>
+    </div>
+</body>
+</html>

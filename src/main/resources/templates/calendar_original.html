@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>모바일 캘린더</title>
+    <style>
+        /* 모바일 환경에 최적화된 스타일 */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+
+        .calendar-container {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .calendar-header {
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            grid-gap: 5px;
+            margin-bottom: 20px;
+        }
+
+        .calendar-day {
+            padding: 10px;
+            background-color: #fff;
+            text-align: center;
+            border-radius: 5px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .calendar-day:hover {
+            background-color: #e0e0e0;
+        }
+
+        .event-icons-container {
+            display: flex;
+            gap: 2px;
+            position: absolute;
+            top: 5px;
+            right: 5px;
+        }
+
+        .event-icon {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .event-block {
+            background-color: #d1e7dd;
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .add-event, .view-event, .edit-event {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .add-event input, .add-event button, .view-event button, .edit-event button {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 10px;
+        }
+
+        /* 반응형 스타일 */
+        @media (min-width: 600px) {
+            .calendar-container {
+                max-width: 600px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="calendar-container">
+    <div class="calendar-header" id="calendarHeader">2024년 8월</div>
+    <div class="calendar-grid">
+        <!-- 요일 헤더 추가 -->
+        <div class="calendar-day">월</div>
+        <div class="calendar-day">화</div>
+        <div class="calendar-day">수</div>
+        <div class="calendar-day">목</div>
+        <div class="calendar-day">금</div>
+        <div class="calendar-day">토</div>
+        <div class="calendar-day">일</div>
+    </div>
+    <div class="calendar-grid" id="calendarDays">
+        <!-- 날짜가 동적으로 생성됩니다 -->
+    </div>
+</div>
+
+<!-- 일정 보기 및 추가 폼 -->
+<div class="view-event" id="viewEventForm">
+    <div id="eventBlocks"></div>
+    <button id="addEventButton" onclick="openEventForm()">일정 추가하기</button>
+    <button onclick="closeEventForm()">닫기</button>
+</div>
+
+<!-- 일정 등록 폼 -->
+<div class="add-event" id="addEventForm">
+    <form action="/calendar" method="post">
+        <input type="text" id="eventTitle" placeholder="노래 제목">
+        <input type="text" id="teamName" placeholder="팀 이름">
+        <input type="text" id="teamMembers" placeholder="팀 멤버 (쉼표로 구분)">
+        <label for="startTime">시작 시간:</label>
+        <input type="time" id="startTime" step="600"> <!-- 시간 10분 단위로 설정 -->
+        <label for="endTime">종료 시간:</label>
+        <input type="time" id="endTime" step="600"> <!-- 종료 시간 추가 -->
+        <button type="submit">일정 추가</button>
+        <button onclick="closeEventForm()">취소</button>
+    </form>
+</div>
+
+<!-- 일정 수정 및 세부 정보 폼 -->
+<div class="edit-event" id="editEventForm">
+    <div id="eventDetails"></div>
+    <input type="text" id="editTitle" placeholder="노래 제목">
+    <input type="text" id="editTeamName" placeholder="팀 이름">
+    <input type="text" id="editTeamMembers" placeholder="팀 멤버 (쉼표로 구분)">
+    <label for="editStartTime">시작 시간:</label>
+    <input type="time" id="editStartTime" step="600">
+    <label for="editEndTime">종료 시간:</label>
+    <input type="time" id="editEndTime" step="600">
+    <button onclick="updateEvent()">수정 완료</button>
+    <button onclick="closeEditEventForm()">취소</button>
+</div>
+
+<script>
+    // 현재 날짜 및 달 정보
+    const currentYear = 2024;
+    const currentMonth = 7; // 8월 (0-기준이므로 7)
+    let selectedDate = ''; // 선택된 날짜 저장용 변수
+    let editingEventIndex = null; // 수정 중인 일정의 인덱스 저장
+    let events = {}; // 일정 저장용 객체
+
+    // 달력 데이터를 채우는 함수
+    function generateCalendar(year, month) {
+        const daysContainer = document.getElementById('calendarDays');
+        daysContainer.innerHTML = ''; // 기존 내용 초기화
+
+        const firstDay = new Date(year, month, 1).getDay(); // 첫 날의 요일 (일요일=0)
+        const lastDate = new Date(year, month + 1, 0).getDate(); // 달의 마지막 날짜
+        const prevMonthLastDate = new Date(year, month, 0).getDate(); // 이전 달의 마지막 날짜
+
+        let dayCount = 1;
+        let prevMonthDayCount = prevMonthLastDate - (firstDay - 1);
+
+        // 빈 칸 채우기 (이전 달)
+        for (let i = 0; i < firstDay - 1; i++) {
+            const emptyDay = document.createElement('div');
+            emptyDay.classList.add('calendar-day');
+            emptyDay.textContent = prevMonthDayCount++;
+            emptyDay.style.color = '#ccc'; // 이전 달 날짜는 흐리게
+            daysContainer.appendChild(emptyDay);
+        }
+
+        // 현재 달 날짜 채우기
+        for (let i = 0; i < lastDate; i++) {
+            const day = document.createElement('div');
+            day.classList.add('calendar-day');
+            day.textContent = dayCount;
+            day.dataset.date = `${year}-${month + 1}-${dayCount}`;
+            day.onclick = () => viewEvent(day.dataset.date); // 날짜 클릭 시 해당 날짜의 일정을 보기 또는 추가
+            if (events[day.dataset.date]) {
+                // 일정이 있는 경우 아이콘 추가
+                updateCalendarDayIcon(day, events[day.dataset.date]);
+            }
+            daysContainer.appendChild(day);
+            dayCount++;
+        }
+
+        // 남는 칸 채우기 (다음 달)
+        const totalCells = firstDay - 1 + lastDate;
+        const remainingCells = 42 - totalCells; // 6주 기준 42칸
+        for (let i = 0; i < remainingCells; i++) {
+            const emptyDay = document.createElement('div');
+            emptyDay.classList.add('calendar-day');
+            emptyDay.textContent = i + 1;
+            emptyDay.style.color = '#ccc'; // 다음 달 날짜는 흐리게
+            daysContainer.appendChild(emptyDay);
+        }
+    }
+
+    // 일정 보기 또는 추가 폼을 보여주는 함수
+    function viewEvent(date) {
+        selectedDate = date;
+        const eventBlocksContainer = document.getElementById("eventBlocks");
+        eventBlocksContainer.innerHTML = ''; // 이전 내용 초기화
+
+        if (events[date]) {
+            // 시간 순으로 정렬
+            events[date].sort((a, b) => a.startTime.localeCompare(b.startTime));
+            events[date].forEach((event, index) => {
+                const eventBlock = document.createElement('div');
+                eventBlock.classList.add('event-block');
+                eventBlock.innerHTML = `${event.title} - ${event.teamName}`;
+                eventBlock.onclick = () => editEvent(index); // 일정 수정/세부 정보 보기
+                eventBlocksContainer.appendChild(eventBlock);
+            });
+        } else {
+            eventBlocksContainer.textContent = '등록된 일정이 없습니다.';
+        }
+
+        document.getElementById("viewEventForm").style.display = "block";
+    }
+
+    // 일정 등록 폼 열기
+    function openEventForm() {
+        document.getElementById("addEventForm").style.display = "block";
+        document.getElementById("viewEventForm").style.display = "none"; // 기존 일정 숨김
+    }
+
+    // 일정 등록 폼 닫기
+    function closeEventForm() {
+        document.getElementById("addEventForm").style.display = "none";
+        document.getElementById("viewEventForm").style.display = "block"; // 기존 일정 다시 보이기
+    }
+
+    // 일정 수정 폼 열기
+    function editEvent(index) {
+        editingEventIndex = index;
+        const event = events[selectedDate][index];
+        document.getElementById("editTitle").value = event.title;
+        document.getElementById("editTeamName").value = event.teamName;
+        document.getElementById("editTeamMembers").value = event.teamMembers;
+        document.getElementById("editStartTime").value = event.startTime;
+        document.getElementById("editEndTime").value = event.endTime;
+
+        document.getElementById("viewEventForm").style.display = "none";
+        document.getElementById("editEventForm").style.display = "block";
+    }
+
+    // 일정 수정 폼 닫기
+    function closeEditEventForm() {
+        document.getElementById("editEventForm").style.display = "none";
+        document.getElementById("viewEventForm").style.display = "block";
+    }
+
+    // 일정 추가 기능
+    function addEvent() {
+        const title = document.getElementById("eventTitle").value;
+        const teamName = document.getElementById("teamName").value;
+        const teamMembers = document.getElementById("teamMembers").value;
+        const startTime = document.getElementById("startTime").value;
+        const endTime = document.getElementById("endTime").value;
+
+        if (title && teamName && startTime && endTime && selectedDate) {
+            const event = {
+                title: title,
+                teamName: teamName,
+                teamMembers: teamMembers,
+                startTime: startTime,
+                endTime: endTime
+            };
+
+            if (!events[selectedDate]) {
+                events[selectedDate] = [];
+            }
+
+            events[selectedDate].push(event);
+
+            alert(`일정 추가됨: ${title} (날짜: ${selectedDate})`);
+            closeEventForm();
+            viewEvent(selectedDate); // 일정 추가 후 해당 날짜의 일정 다시 보기
+            updateCalendarDayIcon(document.querySelector(`[data-date="${selectedDate}"]`), events[selectedDate]);
+        } else {
+            alert("모든 항목을 입력해주세요.");
+        }
+    }
+
+    // 일정 수정 기능
+    function updateEvent() {
+        const title = document.getElementById("editTitle").value;
+        const teamName = document.getElementById("editTeamName").value;
+        const teamMembers = document.getElementById("editTeamMembers").value;
+        const startTime = document.getElementById("editStartTime").value;
+        const endTime = document.getElementById("editEndTime").value;
+
+        if (title && teamName && teamMembers && startTime && endTime && editingEventIndex !== null) {
+            events[selectedDate][editingEventIndex] = {
+                title: title,
+                teamName: teamName,
+                teamMembers: teamMembers,
+                startTime: startTime,
+                endTime: endTime
+            };
+
+            alert(`일정 수정 완료: ${title} (날짜: ${selectedDate})`);
+            closeEditEventForm();
+            viewEvent(selectedDate); // 수정 후 해당 날짜의 일정 다시 보기
+        } else {
+            alert("모든 항목을 입력해주세요.");
+        }
+    }
+
+    // 일정이 추가된 날짜에 아이콘 추가 함수
+    function updateCalendarDayIcon(dayElement, eventsForDay) {
+        dayElement.innerHTML = dayElement.textContent; // 기존 아이콘 삭제
+
+        const iconsContainer = document.createElement('div');
+        iconsContainer.classList.add('event-icons-container');
+
+        eventsForDay.forEach(event => {
+            const icon = document.createElement('div');
+            icon.classList.add('event-icon');
+            icon.style.backgroundColor = getRandomColor();
+            iconsContainer.appendChild(icon);
+        });
+
+        dayElement.appendChild(iconsContainer);
+    }
+
+    // 색상 랜덤 배정 함수
+    function getRandomColor() {
+        const letters = '0123456789ABCDEF';
+        let color = '#';
+        for (let i = 0; i < 6; i++) {
+            color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+    }
+
+    // 페이지 로드 시 캘린더 생성
+    window.onload = function() {
+        generateCalendar(currentYear, currentMonth);
+    }
+</script>
+</body>
+</html>
